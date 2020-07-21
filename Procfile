@@ -1,1 +1,1 @@
-web: ./target/release/pictionarywarped
+web: RUST_LOG=warn ./target/release/pictionarywarped
