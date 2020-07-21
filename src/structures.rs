@@ -141,7 +141,7 @@ impl Lobby {
     pub fn chat(&mut self, id: &str, mut message: String) {
         if let Some(player) = self.players.get(id) {
             if let State::Game(id, data) = &mut self.state {
-                if message == data.word {
+                if message.eq_ignore_ascii_case( &data.word) {
                     message = "Guessed the word!".to_string();
                     data.guessed.insert(player.id.to_string());
                 }
