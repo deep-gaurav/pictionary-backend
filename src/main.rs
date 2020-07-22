@@ -242,6 +242,16 @@ async fn player_message(player_id: &str, lobbyid: &str, context: &Context, messa
                 PlayerMessage::AddPoints(points) => {
                     lobby.add_points(points);
                 }
+                PlayerMessage::WordChosen(word)=>{
+                    if let State::Game(leader,data)=&mut lobby.state{
+                        if let WordState::ChoseWords(_)=data.word{
+                            data.word=WordState::Word(word);
+                            lobby.broadcast(
+                                SocketMessage::LeaderChange(lobby.state.clone())  
+                            );
+                        }
+                    }
+                }
                 msg => {
                     warn!("Received Unexpected Player message {:#?}", msg);
                 }

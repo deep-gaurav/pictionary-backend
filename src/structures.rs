@@ -50,17 +50,28 @@ pub enum State {
 pub struct GameData {
     pub drawing: Vec<Point>,
     pub guessed: HashSet<String>,
-    pub word: String,
+    pub word: WordState,
+}
+
+#[derive(Debug, Serialize,Clone)]
+pub enum WordState{
+    ChoseWords(Vec<String>),
+    Word(String)
 }
 
 impl GameData {
     pub fn default(lead: &str) -> Self {
         let mut hs = HashSet::new();
         hs.insert(lead.to_string());
+
+        let mut words = vec![];
+        for i in 0..3{
+            words.push(crate::utils::getrandomword());
+        }
         GameData {
             drawing: vec![],
             guessed: hs,
-            word: crate::utils::getrandomword(),
+            word: WordState::ChoseWords(words),
         }
     }
 }
@@ -141,9 +152,14 @@ impl Lobby {
     pub fn chat(&mut self, id: &str, mut message: String) {
         if let Some(player) = self.players.get(id) {
             if let State::Game(id, data) = &mut self.state {
-                if message.eq_ignore_ascii_case( &data.word) {
-                    message = "Guessed the word!".to_string();
-                    data.guessed.insert(player.id.to_string());
+                match &data.word{
+                    WordState::Word(word)=>{
+                        if message.eq_ignore_ascii_case( word) {
+                            message = "Guessed the word!".to_string();
+                            data.guessed.insert(player.id.to_string());
+                        }
+                    }
+                    WordState::ChoseWords(_words)=>{}
                 }
             }
             self.broadcast(SocketMessage::Chat(player.name.to_string(), message));
@@ -249,6 +265,7 @@ pub type Context = Arc<RwLock<Lobbies>>;
 pub enum PlayerMessage {
     Initialize(String, String),
     JoinLobby(String),
+    WordChosen(String),
     CreateLobby,
     Ping,
 
