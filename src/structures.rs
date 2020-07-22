@@ -154,7 +154,7 @@ impl Lobby {
             if let State::Game(id, data) = &mut self.state {
                 match &data.word{
                     WordState::Word(word)=>{
-                        if message.eq_ignore_ascii_case( word) {
+                        if message.trim().eq_ignore_ascii_case( word.trim()) {
                             message = "Guessed the word!".to_string();
                             data.guessed.insert(player.id.to_string());
                         }
