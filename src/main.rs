@@ -223,7 +223,7 @@ async fn player_message(player_id: &str, lobbyid: &str, context: &Context, messa
                     lobby.add_points(points);
                 }
                 PlayerMessage::WordChosen(word) => {
-                    if let State::Game(leader,_, data) = &mut lobby.state {
+                    if let State::Game(leader, _, data) = &mut lobby.state {
                         if let WordState::ChoseWords(_) = data.word {
                             data.word = WordState::Word(word);
                             lobby.broadcast(SocketMessage::LeaderChange(lobby.state.clone()));
@@ -263,15 +263,13 @@ async fn timer_detect(playerid: &str, lobbyid: &str, context: &Context) {
         interval.tick().await;
         if let Some(lobby) = context.write().await.private_lobbies.get_mut(lobbyid) {
             if let Some(player) = lobby.players.get(playerid) {
-                if let State::Game(leader,_sc,data)=&mut lobby.state{
-                    if let WordState::Word(_)=&data.word{
-                        if &player.id == leader{
-                            if data.time>=1{
-                                data.time-=1;
-                                lobby.broadcast(
-                                    SocketMessage::TimeUpdate(lobby.state.clone())
-                                );
-                            }else{
+                if let State::Game(leader, _sc, data) = &mut lobby.state {
+                    if let WordState::Word(_) = &data.word {
+                        if &player.id == leader {
+                            if data.time >= 1 {
+                                data.time -= 1;
+                                lobby.broadcast(SocketMessage::TimeUpdate(lobby.state.clone()));
+                            } else {
                                 lobby.assignnewleader();
                             }
                         }
