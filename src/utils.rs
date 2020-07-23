@@ -4,7 +4,7 @@ pub fn getrandomword() -> String {
     let docs = std::fs::read_to_string("game_words.yaml").expect("Cant load yaml file");
     let docs = YamlLoader::load_from_str(&docs).expect("Not valid yamml");
     let doc1 = &docs[0];
-    let words = doc1["catchphrase"]["easy"]
+    let words = doc1["pictionary"]["easy"]
         .as_vec()
         .expect("catchphrase easy not found");
 
