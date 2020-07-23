@@ -258,18 +258,24 @@ async fn player_disconnect(player_id: &str, lobbyid: &str, context: &Context) {
 }
 
 async fn timer_detect(playerid: &str, lobbyid: &str, context: &Context) {
-    let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
     loop {
         interval.tick().await;
         if let Some(lobby) = context.write().await.private_lobbies.get_mut(lobbyid) {
             if let Some(player) = lobby.players.get(playerid) {
-                if lobby.draw_time>=1{
-                    lobby.draw_time-=1;
-                    lobby.broadcast(
-                        SocketMessage::TimeUpdate(lobby.state.clone())
-                    );
-                }else{
-                    lobby.assignnewleader();
+                if let State::Game(leader,_sc,data)=&mut lobby.state{
+                    if let WordState::Word(_)=&data.word{
+                        if &player.id == leader{
+                            if data.time>=1{
+                                data.time-=1;
+                                lobby.broadcast(
+                                    SocketMessage::TimeUpdate(lobby.state.clone())
+                                );
+                            }else{
+                                lobby.assignnewleader();
+                            }
+                        }
+                    }
                 }
             } else {
                 warn!("Player doest exist, stopping interval");
