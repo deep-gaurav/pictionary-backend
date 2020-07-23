@@ -54,6 +54,12 @@ pub struct GameData {
     pub word: WordState,
 }
 
+impl GameData{
+    pub fn get_score(&self)->u32{
+        200+800*(self.time/DEFAULT_DRAW_TIME)
+    }
+}
+
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct Scores{
     scores: HashMap<String,u32>
@@ -158,9 +164,10 @@ impl Lobby {
     }
 
     pub fn chat(&mut self, id: &str, mut message: String) {
-        let gained_score = self.get_score();
         if let Some(player) = self.players.get(id) {
             if let State::Game(id,score, data) = &mut self.state {
+                let gained_score = data.get_score();
+                let drawer_score = 100+gained_score/self.players.len() as u32;
                 match &data.word {
                     WordState::Word(word) => {
                         if message.trim().eq_ignore_ascii_case(word.trim()) {
@@ -171,6 +178,11 @@ impl Lobby {
                                     *f+=gained_score
                                 }
                             ).or_insert(gained_score);
+                            score.scores.entry(id.clone()).and_modify(
+                                |f|{
+                                    *f+=drawer_score
+                                }
+                            ).or_insert(drawer_score);
                             self.broadcast(
                                 SocketMessage::ScoreChange(self.state.clone())
                             );
@@ -186,9 +198,6 @@ impl Lobby {
         }
     }
 
-    pub fn get_score(&self)->u32{
-        200+800*(self.draw_time/DEFAULT_DRAW_TIME)
-    }
 
     pub fn check_turn_change(&self) -> bool {
         if let State::Game(id,_, data) = &self.state {
