@@ -194,32 +194,12 @@ async fn user_connected(websocket: WebSocket, context: Context) {
 
     if let Some(player) = player {
         if let PlayerStatus::JoinedLobby(lobbyid) = player.status {
-            while let Some(msg) = ws_rx.next().await {
-                match msg {
-                    Ok(message) => {
-                        if message.is_close() {
-                            // player_disconnect(&player_id, &lobbyid, &context);
-                            break;
-                        } else if message.is_binary() {
-                            match bincode::deserialize(message.as_bytes()) {
-                                Ok(player_msg) => {
-                                    player_message(&player.id, &lobbyid, &context, player_msg)
-                                        .await;
-                                }
-                                Err(er) => {
-                                    warn!("Received message not Player Message {:#?}", er);
-                                }
-                            }
-                        } else {
-                            warn!("Received message not binary {:#?}", message);
-                        }
-                    }
-                    Err(er) => {
-                        warn!("websocket error {:#}", er);
-                    }
-                }
-            }
-            player_disconnect(&player.id, &lobbyid, &context).await;
+            let playerid = player.id.clone();
+            let timer = timer_detect(&playerid, &lobbyid, &context);
+
+            let messageblock = websocket_msg(&playerid, &lobbyid, &context, ws_rx);
+
+            tokio::join!(timer, messageblock);
         }
     }
 }
@@ -242,13 +222,11 @@ async fn player_message(player_id: &str, lobbyid: &str, context: &Context, messa
                 PlayerMessage::AddPoints(points) => {
                     lobby.add_points(points);
                 }
-                PlayerMessage::WordChosen(word)=>{
-                    if let State::Game(leader,data)=&mut lobby.state{
-                        if let WordState::ChoseWords(_)=data.word{
-                            data.word=WordState::Word(word);
-                            lobby.broadcast(
-                                SocketMessage::LeaderChange(lobby.state.clone())  
-                            );
+                PlayerMessage::WordChosen(word) => {
+                    if let State::Game(leader,_, data) = &mut lobby.state {
+                        if let WordState::ChoseWords(_) = data.word {
+                            data.word = WordState::Word(word);
+                            lobby.broadcast(SocketMessage::LeaderChange(lobby.state.clone()));
                         }
                     }
                 }
@@ -277,4 +255,63 @@ async fn player_disconnect(player_id: &str, lobbyid: &str, context: &Context) {
             lobbies.remove(&lobid);
         }
     }
+}
+
+async fn timer_detect(playerid: &str, lobbyid: &str, context: &Context) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+    loop {
+        interval.tick().await;
+        if let Some(lobby) = context.write().await.private_lobbies.get_mut(lobbyid) {
+            if let Some(player) = lobby.players.get(playerid) {
+                if lobby.draw_time>=1{
+                    lobby.draw_time-=1;
+                    lobby.broadcast(
+                        SocketMessage::TimeUpdate(lobby.state.clone())
+                    );
+                }else{
+                    lobby.assignnewleader();
+                }
+            } else {
+                warn!("Player doest exist, stopping interval");
+                break;
+            }
+        } else {
+            warn!("Lobby doesnt exist, stopping interval");
+            break;
+        }
+    }
+}
+
+async fn websocket_msg(
+    player_id: &str,
+    lobbyid: &str,
+    context: &Context,
+    mut ws_rx: futures_util::stream::SplitStream<WebSocket>,
+) {
+    while let Some(msg) = ws_rx.next().await {
+        match msg {
+            Ok(message) => {
+                if message.is_close() {
+                    // player_disconnect(&player_id, &lobbyid, &context);
+                    break;
+                } else if message.is_binary() {
+                    match bincode::deserialize(message.as_bytes()) {
+                        Ok(player_msg) => {
+                            player_message(&player_id, &lobbyid, &context, player_msg).await;
+                        }
+                        Err(er) => {
+                            warn!("Received message not Player Message {:#?}", er);
+                        }
+                    }
+                } else {
+                    warn!("Received message not binary {:#?}", message);
+                }
+            }
+            Err(er) => {
+                warn!("websocket error {:#}", er);
+            }
+        }
+    }
+
+    player_disconnect(&player_id, &lobbyid, &context).await;
 }

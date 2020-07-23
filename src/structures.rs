@@ -1,19 +1,18 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use warp::filters::ws::{Message, WebSocket, Ws};
-use warp::Filter;
+use warp::filters::ws::Message;
 
-use futures_util::future::FutureExt;
-use futures_util::stream::StreamExt;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
 
-use log::{debug, error, info, log, trace, warn};
-use pretty_env_logger;
+use log::{error, warn};
 
 use std::collections::HashSet;
+
+static DEFAULT_DRAW_TIME: u32 = 90;
+
 
 #[derive(Default)]
 pub struct Lobbies {
@@ -25,6 +24,7 @@ pub struct Lobby {
     pub id: String,
     pub players: HashMap<String, Player>,
     pub state: State,
+    pub draw_time: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -43,35 +43,42 @@ pub struct Point {
 #[derive(Debug, Serialize, Clone)]
 pub enum State {
     Lobby(String),
-    Game(String, GameData),
+    Game(String,Scores, GameData),
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct GameData {
     pub drawing: Vec<Point>,
     pub guessed: HashSet<String>,
+    pub time: u32,
     pub word: WordState,
 }
 
-#[derive(Debug, Serialize,Clone)]
-pub enum WordState{
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct Scores{
+    scores: HashMap<String,u32>
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub enum WordState {
     ChoseWords(Vec<String>),
-    Word(String)
+    Word(String),
 }
 
 impl GameData {
-    pub fn default(lead: &str) -> Self {
+    pub fn default(lead: &str,time:u32) -> Self {
         let mut hs = HashSet::new();
         hs.insert(lead.to_string());
 
         let mut words = vec![];
-        for i in 0..3{
+        for _i in 0..3 {
             words.push(crate::utils::getrandomword());
         }
         GameData {
             drawing: vec![],
             guessed: hs,
             word: WordState::ChoseWords(words),
+            time
         }
     }
 }
@@ -80,7 +87,7 @@ impl State {
     pub fn leader(&self) -> &str {
         match &self {
             State::Lobby(id) => id,
-            State::Game(id, _) => id,
+            State::Game(id,_, _) => id,
         }
     }
 }
@@ -93,6 +100,7 @@ impl Lobby {
             id,
             players: map,
             state: State::Lobby(player.id.clone()),
+            draw_time:DEFAULT_DRAW_TIME
         }
     }
 
@@ -119,8 +127,8 @@ impl Lobby {
                 if let Some(pid) = players.next() {
                     self.state = {
                         match &self.state {
-                            State::Game(_, data) => {
-                                State::Game(pid.clone(), GameData::default(pid))
+                            State::Game(_,score, _data) => {
+                                State::Game(pid.clone(),score.clone(), GameData::default(pid,self.draw_time))
                             }
                             State::Lobby(_) => State::Lobby(pid.clone()),
                         }
@@ -132,7 +140,7 @@ impl Lobby {
         }
         if let Some(pid) = self.players.keys().sorted().next() {
             self.state = match &self.state {
-                State::Game(_, data) => State::Game(pid.clone(), GameData::default(pid)),
+                State::Game(_,score, data) => State::Game(pid.clone(),score.to_owned(), GameData::default(pid,self.draw_time)),
                 State::Lobby(_) => State::Lobby(pid.clone()),
             };
             self.broadcast(SocketMessage::LeaderChange(self.state.clone()));
@@ -150,16 +158,25 @@ impl Lobby {
     }
 
     pub fn chat(&mut self, id: &str, mut message: String) {
+        let gained_score = self.get_score();
         if let Some(player) = self.players.get(id) {
-            if let State::Game(id, data) = &mut self.state {
-                match &data.word{
-                    WordState::Word(word)=>{
-                        if message.trim().eq_ignore_ascii_case( word.trim()) {
+            if let State::Game(id,score, data) = &mut self.state {
+                match &data.word {
+                    WordState::Word(word) => {
+                        if message.trim().eq_ignore_ascii_case(word.trim()) {
                             message = "Guessed the word!".to_string();
                             data.guessed.insert(player.id.to_string());
+                            score.scores.entry(player.id.clone()).and_modify(
+                                |f|{
+                                    *f+=gained_score
+                                }
+                            ).or_insert(gained_score);
+                            self.broadcast(
+                                SocketMessage::ScoreChange(self.state.clone())
+                            );
                         }
                     }
-                    WordState::ChoseWords(_words)=>{}
+                    WordState::ChoseWords(_words) => {}
                 }
             }
             self.broadcast(SocketMessage::Chat(player.name.to_string(), message));
@@ -169,8 +186,12 @@ impl Lobby {
         }
     }
 
+    pub fn get_score(&self)->u32{
+        200+800*(self.draw_time/DEFAULT_DRAW_TIME)
+    }
+
     pub fn check_turn_change(&self) -> bool {
-        if let State::Game(id, data) = &self.state {
+        if let State::Game(id,_, data) = &self.state {
             if data.guessed.len() >= self.players.len() {
                 return true;
             }
@@ -182,21 +203,21 @@ impl Lobby {
         match &self.state {
             State::Lobby(pid) => {
                 if playerid == pid {
-                    self.state = State::Game(pid.clone(), GameData::default(pid));
+                    self.state = State::Game(pid.clone(),Scores::default(), GameData::default(pid,self.draw_time));
                     self.broadcast(SocketMessage::GameStart(self.state.clone()));
                 } else {
                     warn!("Only leader {:#} can start game", pid);
                 }
             }
-            State::Game(_, _) => {
+            State::Game(_,_, _) => {
                 warn!("Cant start game, already in game state");
             }
         }
     }
 
-    pub fn add_points(&mut self, mut points: Vec<Point>) {
+    pub fn add_points(&mut self, points: Vec<Point>) {
         match &mut self.state {
-            State::Game(leader, data) => {
+            State::Game(leader,_, data) => {
                 data.drawing.append(&mut points.clone());
                 self.broadcast(SocketMessage::AddPoints(points))
             }
@@ -284,6 +305,9 @@ pub enum SocketMessage {
 
     Chat(String, String),
     LeaderChange(State),
+    ScoreChange(State),
+    TimeUpdate(State),
+
     GameStart(State),
 
     AddPoints(Vec<Point>),
