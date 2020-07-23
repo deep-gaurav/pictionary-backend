@@ -56,7 +56,7 @@ pub struct GameData {
 
 impl GameData{
     pub fn get_score(&self)->u32{
-        200+800*(self.time/DEFAULT_DRAW_TIME)
+        (200_f64 +800_f64*(self.time as f64/DEFAULT_DRAW_TIME as f64)) as u32
     }
 }
 
