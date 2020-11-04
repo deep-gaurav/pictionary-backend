@@ -212,6 +212,10 @@ async fn player_message(player_id: &str, lobbyid: &str, context: &Context, messa
                 PlayerMessage::Chat(chat) => {
                     lobby.chat(player_id, chat);
                 }
+
+                PlayerMessage::AudioChat(adudiochunk) => {
+                    lobby.audio_chat(player_id, adudiochunk);
+                }
                 PlayerMessage::Ping => {
                     player.send(SocketMessage::Pong);
                 }

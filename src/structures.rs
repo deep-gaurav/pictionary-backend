@@ -200,6 +200,11 @@ impl Lobby {
             }
         }
     }
+    pub fn audio_chat(&mut self, id: &str, mut chunk:AudioChunk){
+        if let Some(player) = self.players.get(id) {
+            self.broadcast(SocketMessage::AudioChat(player.name.to_string(), chunk));
+        }
+    }
 
     pub fn check_turn_change(&self) -> bool {
         if let State::Game(id, _, data) = &self.state {
@@ -309,9 +314,17 @@ pub enum PlayerMessage {
     Ping,
 
     Chat(String),
+
+    AudioChat(AudioChunk),
     StartGame,
 
     AddPoints(Vec<Point>),
+}
+
+#[derive(Debug,Serialize,Clone,Deserialize)]
+pub struct AudioChunk{
+    data:Vec<u8>,
+    type_:String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -322,6 +335,7 @@ pub enum SocketMessage {
     Close(CloseCodes),
 
     Chat(String, String),
+    AudioChat(String,AudioChunk),
     LeaderChange(State),
     ScoreChange(State),
     TimeUpdate(State),
