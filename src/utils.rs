@@ -6,8 +6,14 @@ pub fn getrandomword() -> String {
     let doc1 = &docs[0];
     let mut words = doc1["pictionary"]["medium"]
         .as_vec()
-        .expect("catchphrase easy not found").to_owned();
-    words.append(&mut doc1["pictionary"]["hard"].as_vec().expect("hard pictionary not found").to_owned());
+        .expect("catchphrase easy not found")
+        .to_owned();
+    words.append(
+        &mut doc1["pictionary"]["hard"]
+            .as_vec()
+            .expect("hard pictionary not found")
+            .to_owned(),
+    );
 
     use rand::seq::SliceRandom;
     let word = words.choose(&mut rand::thread_rng()).expect("No word");

@@ -124,6 +124,14 @@ impl Lobby {
         }
     }
 
+    pub fn broadcast_except(&self, id: &str, message: SocketMessage) {
+        for p in self.players.iter() {
+            if p.0 != id {
+                p.1.send(message.clone());
+            }
+        }
+    }
+
     pub fn assignnewleader(&mut self) {
         use itertools::Itertools;
         let mut players = self.players.keys().sorted();
@@ -200,9 +208,9 @@ impl Lobby {
             }
         }
     }
-    pub fn audio_chat(&mut self, id: &str, mut chunk:AudioChunk){
+    pub fn audio_chat(&mut self, id: &str, mut chunk: AudioChunk) {
         if let Some(player) = self.players.get(id) {
-            self.broadcast(SocketMessage::AudioChat(player.name.to_string(), chunk));
+            self.broadcast_except(id, SocketMessage::AudioChat(player.name.to_string(), chunk));
         }
     }
 
@@ -321,10 +329,10 @@ pub enum PlayerMessage {
     AddPoints(Vec<Point>),
 }
 
-#[derive(Debug,Serialize,Clone,Deserialize)]
-pub struct AudioChunk{
-    data:Vec<u8>,
-    type_:String,
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct AudioChunk {
+    data: Vec<u8>,
+    type_: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -335,7 +343,7 @@ pub enum SocketMessage {
     Close(CloseCodes),
 
     Chat(String, String),
-    AudioChat(String,AudioChunk),
+    AudioChat(String, AudioChunk),
     LeaderChange(State),
     ScoreChange(State),
     TimeUpdate(State),
