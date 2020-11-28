@@ -179,8 +179,9 @@ impl Lobby {
     pub fn chat(&mut self, id: &str, mut message: String) {
         if let Some(player) = self.players.get(id) {
             if let State::Game(id, score, data) = &mut self.state {
-                let gained_score = data.get_score();
-                let drawer_score = 100 + gained_score / self.players.len() as u32;
+                let pg = data.guessed.len();
+                let gained_score = (100 / (pg + 1)) as u32;
+                let drawer_score = (100 / (self.players.len() - 1)) as u32;
                 match &data.word {
                     WordState::Word(word) => {
                         if message.trim().eq_ignore_ascii_case(word.trim()) {
