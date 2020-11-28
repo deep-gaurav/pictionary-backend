@@ -8,6 +8,13 @@ pub fn getrandomword() -> String {
         .as_vec()
         .expect("catchphrase easy not found")
         .to_owned();
+
+    words.append(
+        &mut doc1["pictionary"]["easy"]
+            .as_vec()
+            .expect("hard pictionary not found")
+            .to_owned(),
+    );
     words.append(
         &mut doc1["pictionary"]["hard"]
             .as_vec()
