@@ -1,0 +1,13 @@
+[Unit]
+Description=pictionary game server
+After=network.target
+
+[Service]
+User=deep
+WorkingDirectory=/home/deep/pictionary
+Environment="PORT=9338"
+ExecStart=/home/deep/pictionary/pictionary
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
