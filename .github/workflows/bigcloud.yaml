@@ -1,8 +1,7 @@
 name: Build and Deploy to Big Self Cloud Prod
 
 on:
-  workflow_dispatch:  # Trigger manually
-
+  push:
 
 env:
   CARGO_TERM_COLOR: always
