@@ -1,0 +1,68 @@
+name: Build and Deploy to Big Self Cloud Prod
+
+on:
+  workflow_dispatch:  # Trigger manually
+
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use cache
+      id: cache-rust
+      uses: actions/cache@v4
+      with:
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/Cargo.lock') }}
+        path: |
+          /home/runner/.cargo
+          /home/runner/work/tvmate/tvmate/target
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+
+    - name: Add aarch64
+      run: rustup target add aarch64-unknown-linux-gnu
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Install Cross
+      run: cargo install cross --git https://github.com/cross-rs/cross
+      
+    - name: Build
+      run: cross build --target aarch64-unknown-linux-gnu
+        
+    - name: Car target
+      run: ls -la target/aarch64-unknown-linux-gnu/
+
+    - name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/arm64
+        push: false
+        tags: tvmate:latest
+        file: Dockerfile.arm64
+        outputs: type=docker,dest=pictionary.tar
+
+    # - name: Load Docker image
+    #   run: docker load --input /tmp/myimage.tar
+
+    # - name: Export image
+    #   run: docker save tvmate:latest -o tvmate.tar
+
+    - name: Compress image
+      run: gzip pictionary.tar
+
+    - name: Push To SelfCloud
+      run: |
+        curl --location --fail --show-error 'https://bigcloud.deepwith.in/cloud/image/push' --form 'project_id="900915a8-dfda-45f0-ba29-03b3edf76922"' --form "token=$SELFCLOUD_TOKEN" --form 'image=@"pictionary.tar.gz"'
+      env:
+        SELFCLOUD_TOKEN: ${{ secrets.BIGCLOUD_TOKEN }}
