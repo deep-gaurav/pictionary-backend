@@ -36,7 +36,7 @@ jobs:
       run: cargo install cross --git https://github.com/cross-rs/cross
       
     - name: Build
-      run: cross build --target aarch64-unknown-linux-gnu
+      run: cross build --target aarch64-unknown-linux-gnu --release
         
     - name: Car target
       run: ls -la target/aarch64-unknown-linux-gnu/
